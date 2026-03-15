@@ -1,10 +1,13 @@
 package com.lyao.searchEng.parser;
 import org.jetbrains.annotations.NotNull;
 
+import com.lyao.searchEng.IR.Zone;
+
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 
 public class TxtParser implements Parser {
     private final String path;
@@ -48,7 +51,7 @@ public class TxtParser implements Parser {
                 throw new RuntimeException(e);
             }
             try {
-                return new LineOfTerms(line, docID);
+                return new LineOfTerms(line, docID, Zone.BODY);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -59,6 +62,16 @@ public class TxtParser implements Parser {
     @Override
     public int getDocId() {
         return docID;
+    }
+
+    @Override
+    public List<String> getAuthor() {
+       return List.of("");
+    }
+
+    @Override
+    public List<String> getTitle() {
+        return List.of(path);
     }
 }
 

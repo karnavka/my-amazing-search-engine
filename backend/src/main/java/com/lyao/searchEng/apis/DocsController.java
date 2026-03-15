@@ -1,20 +1,32 @@
 package com.lyao.searchEng.apis;
 
+import java.util.ArrayList;
+import java.util.Set;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.lyao.searchEng.services.SearchService;
+
+
 @RestController
 public class DocsController {
 
-@GetMapping("/docs")
-public String getDocs() {
-    return "This is supposed to be";
-}
+    private final SearchService searchService;
 
-@GetMapping("/search")
-public String returnDocsId(@RequestParam(name = "query") String query) {
-        return "Search: " + query;
+    public DocsController(SearchService searchService) {
+        this.searchService = searchService;
+    }
+
+    @GetMapping("/search")
+    public Set<Integer> search(@RequestParam(name = "q") String q) {
+        return searchService.search(q);
+    }
+
+     @GetMapping("/searchByZone")
+    public ArrayList<String> searchByZone(@RequestParam(name = "q") String q) {
+        return searchService.searchByZone(q);
     }
 
   
