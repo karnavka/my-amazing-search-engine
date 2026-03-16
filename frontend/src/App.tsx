@@ -1,5 +1,9 @@
+declare module "*.png";
+declare module "*.svg";
 import { useState } from 'react'
 import './App.css'
+import { SearchBar } from './components/SearchBar.tsx';
+import Logo from './assets/guglya.png';
 
 function App() {
   
@@ -7,7 +11,10 @@ function App() {
   return (
         <div className="App">
           <div className="search-container">
-          <div>Search bar</div>
+             <div className="app-icon">
+              <img src={Logo} />
+          </div>
+          <SearchBar />
           <div>Search results</div>
           </div>
         </div>
