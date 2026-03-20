@@ -1,7 +1,6 @@
 package com.lyao.searchEng.parser;
 import org.jetbrains.annotations.NotNull;
 
-import com.lyao.searchEng.IR.Zone;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -51,7 +50,7 @@ public class TxtParser implements Parser {
                 throw new RuntimeException(e);
             }
             try {
-                return new LineOfTerms(line, docID, Zone.BODY);
+                return new LineOfTerms(line, docID);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

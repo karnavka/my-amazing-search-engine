@@ -13,7 +13,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
-import com.lyao.searchEng.IR.Zone;
+
 
 public class EpubParser implements Parser {
     int docID;
@@ -65,7 +65,7 @@ public class EpubParser implements Parser {
             }
             String text = Jsoup.parse(xhtml).text();
             try {
-                return new LineOfTerms(text, docID, Zone.BODY);
+                return new LineOfTerms(text, docID);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

@@ -1,7 +1,7 @@
 package com.lyao.searchEng.services;
 
+import java.io.File;
 import java.util.ArrayList;
-import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import com.lyao.searchEng.IR.TreeIndex;
@@ -14,20 +14,22 @@ public class SearchService {
 
     public SearchService() {
         try {
-            this.searcher = new Searcher(new TreeIndex("./data/books"));
+            this.searcher = new Searcher(new TreeIndex("E:\\Study Second Year\\2_trim\\IR\\my-amazing-search-engine\\backend\\data\\books"));
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public Set<Integer> search(String query) {
-        try {
-            return searcher.getPostingsOfWords(query);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
+    /*
+     * public Set<Integer> search(String query) {
+     * try {
+     * return searcher.getPostingsOfWords(query);
+     * } catch (Exception e) {
+     * throw new RuntimeException(e);
+     * }
+     * }
+     */
     public ArrayList<String> searchByZone(String query) {
         try {
             return searcher.getDocsPathByZone(query);

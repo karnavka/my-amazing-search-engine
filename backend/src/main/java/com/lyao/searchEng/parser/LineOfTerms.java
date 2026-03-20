@@ -3,7 +3,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import com.lyao.searchEng.IR.Zone;
+
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -12,11 +12,9 @@ public class LineOfTerms {
     String text;
     int docID;
     ArrayList<String> terms;
-    Zone zone;
-    public LineOfTerms(String text, int docID, Zone zone) throws IOException {
+    public LineOfTerms(String text, int docID) throws IOException {
         this.text = text;
         this.docID = docID;
-        this.zone = zone;
         normaliseWords();
     }
 
@@ -37,5 +35,4 @@ public class LineOfTerms {
         return terms;
     }
     public int getDocID() {return docID;}
-    public Zone getZone() {return zone;}
 }
