@@ -31,6 +31,11 @@ public class DocsController {
         return searchService.searchByZone(q);
     }
 
+      @GetMapping("/wildCardSearch")
+    public ArrayList<String> searchWildcar(@RequestParam(name = "q") String q) {
+        return searchService.searchWildcar(q);
+    }
+
   
 
 }

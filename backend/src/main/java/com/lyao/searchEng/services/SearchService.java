@@ -14,8 +14,8 @@ public class SearchService {
 
     public SearchService() {
         try {
-            this.searcher = new Searcher(new TreeIndex("E:\\Study Second Year\\2_trim\\IR\\my-amazing-search-engine\\backend\\data\\books"));
-
+            this.searcher = new Searcher(new TreeIndex(".\\data\\books"));
+            searcher.getDocsPathByWildcard("m*on");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -33,6 +33,14 @@ public class SearchService {
     public ArrayList<String> searchByZone(String query) {
         try {
             return searcher.getDocsPathByZone(query);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public ArrayList<String> searchWildcar(String query) {
+        try {
+            return searcher.getDocsPathByWildcard(query);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

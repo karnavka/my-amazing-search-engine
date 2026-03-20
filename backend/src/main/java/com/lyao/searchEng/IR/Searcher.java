@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.Collections;
+import java.util.List;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -32,24 +33,29 @@ public class Searcher {
         threeGramIndex = invertedIndex.threeGramIndex;
     }
 
-   /* private Set<Integer> getPostingsOfWordsInZoneIndex(String query) throws IOException {
-        Set<Integer> indexes = new TreeSet<>();
-        ArrayList<String> listOfWords = normilizeQuery(query);
-        for (String key : listOfWords) {
-            long offset = dictionary.get(key).offset;
-            zonePostingFile.seek(offset);
-            for (int i = 0; i < dictionary.get(key).docFrequency; i++) {
+    public ArrayList<String> getDocsPathByZone(String query) throws IOException {
+        ArrayList<Integer> docIDs = getDocsInZoneOrder(query);
+        return getDocPathByIds(docIDs);
+    }
+
+    public ArrayList<String> getDocsPathByWildcard(String query) throws IOException {
+        TreeSet<Integer> docIDs = wildCardTheeGram(query);
+        return getDocPathByIds(new ArrayList<>(docIDs));
+    }
+
+    private TreeSet<Integer> getPostingsOfWordsInZoneIndex(Collection<String> words) throws IOException {
+        TreeSet<Integer> indexes = new TreeSet<>();
+        for (String key : words) {
+            TreeIndex.OffsetToPostList entry = dictionary.get(key);
+            if (entry == null || entry.zoneOffset < 0) continue;   
+            zonePostingFile.seek(entry.zoneOffset);
+            for (int i = 0; i < entry.docFrequency; i++) {
                 int docID = zonePostingFile.readInt();
                 zonePostingFile.readFloat();
                 indexes.add(docID);
             }
         }
         return indexes;
-    }*/
-
-    public ArrayList<String> getDocsPathByZone(String query) throws IOException {
-        ArrayList<Integer> docIDs = getDocsInZoneOrder(query);
-        return getDocPathByIds(docIDs);
     }
 
     private ArrayList<Integer> getDocsInZoneOrder(String query) throws IOException {
@@ -57,7 +63,11 @@ public class Searcher {
         ArrayList<docIdWithWeight> docsWithWeights = new ArrayList<>();
         float[] weightPerDoc = new float[inputFiles.length];
         for (String key : listOfWords) {
-            long offset = dictionary.get(key).zoneOffset;
+            TreeIndex.OffsetToPostList entry = dictionary.get(key);
+            if (entry == null || entry.zoneOffset < 0)
+                continue;
+
+            long offset = entry.zoneOffset;
             zonePostingFile.seek(offset);
             for (int i = 0; i < dictionary.get(key).docFrequency; i++) {
                 int docID = zonePostingFile.readInt();
@@ -78,30 +88,40 @@ public class Searcher {
         return docIDsInZoneOrder;
     }
 
-   /*  public TreeSet<Integer> wildCardTheeGram(String word) throws IOException {
-        lastFoundWords = new TreeSet<>();
-        TreeSet<Integer> resIndexes = new TreeSet<>();
-        ArrayList<String> threeGrams = createThreeGramsFromQuery(word);
-        TreeSet<String> matchingWords = threeGramIndex.get(threeGrams.getFirst());
-        for (int i = 1; i < threeGrams.size(); i++) {
-            TreeSet<String> matchingWordsToCurrentThreeGram = threeGramIndex.get(threeGrams.get(i));
-            matchingWords = intersectWords(matchingWordsToCurrentThreeGram, matchingWords);
+  public TreeSet<Integer> wildCardTheeGram(String word) throws IOException {
+    lastFoundWords = new TreeSet<>();
+    TreeSet<Integer> resIndexes = new TreeSet<>();
+    ArrayList<String> threeGrams = createThreeGramsFromQuery(word);
+    if (threeGrams.isEmpty()) return resIndexes;
+    TreeSet<String> matchingWords = threeGramIndex.get(threeGrams.get(0));
+    if (matchingWords == null) return resIndexes;
+    matchingWords = new TreeSet<>(matchingWords);
+    for (int i = 1; i < threeGrams.size(); i++) {
+        TreeSet<String> matchingWordsToCurrentThreeGram = threeGramIndex.get(threeGrams.get(i));
+        if (matchingWordsToCurrentThreeGram == null) {
+            return resIndexes;
         }
-        if (matchingWords.isEmpty()) return resIndexes;
-        TreeSet<String> filteredWords = new TreeSet<>();
-        for (String candidate : matchingWords) {
-            if (matchesWildcard(candidate, word)) {
-                filteredWords.add(candidate);
-            }
+        matchingWords = intersectWords(matchingWordsToCurrentThreeGram, matchingWords);
+        if (matchingWords.isEmpty()) {
+            return resIndexes;
         }
-        getPostingsOfWords(filteredWords, resIndexes);
-        lastFoundWords = filteredWords;
-        return resIndexes;
-    }*/ 
+    }
+    TreeSet<String> filteredWords = new TreeSet<>();
+    for (String candidate : matchingWords) {
+        if (matchesWildcard(candidate, word)) {
+            filteredWords.add(candidate);
+        }
+    }
+    resIndexes = getPostingsOfWordsInZoneIndex(filteredWords);
+    lastFoundWords = filteredWords;
+    return resIndexes;
+}
+
     private boolean matchesWildcard(String candidate, String wildcard) {
         String regex = wildcardToRegex(wildcard);
         return candidate.matches(regex);
     }
+
     private String wildcardToRegex(String wildcard) {
         StringBuilder sb = new StringBuilder();
         sb.append("^");
@@ -128,20 +148,23 @@ public class Searcher {
         }
         return intersection;
     }
-   
-    private void getPostingsOfWords(Collection<String> listOfWords, Set<Integer> indexes) throws IOException {
-        for (String key : listOfWords) {
-            long offset = dictionary.get(key).zoneOffset;
-            System.out.println(key + dictionary.get(key).docFrequency );
-            regularPostingFile.seek(offset);
-            for (int i = 0; i < dictionary.get(key).docFrequency; i++) {
-                int docID =  regularPostingFile.readInt();
-                indexes.add(docID);
-                System.out.println("docId " +docID);
-            }
-        }
-    }
-   
+
+    /*
+     * private void getPostingsOfWords(Collection<String> listOfWords, Set<Integer>
+     * indexes) throws IOException {
+     * for (String key : listOfWords) {
+     * long offset = dictionary.get(key).zoneOffset;
+     * System.out.println(key + dictionary.get(key).docFrequency);
+     * regularPostingFile.seek(offset);
+     * for (int i = 0; i < dictionary.get(key).docFrequency; i++) {
+     * int docID = regularPostingFile.readInt();
+     * indexes.add(docID);
+     * System.out.println("docId " + docID);
+     * }
+     * }
+     * }
+     */
+
     private class docIdWithWeight implements Comparable<docIdWithWeight> {
         int docID;
         float weight;
@@ -180,18 +203,18 @@ public class Searcher {
     }
 
     private ArrayList<String> createThreeGramsFromQuery(String word) {
-    ArrayList<String> threeGrams = new ArrayList<>();
+        ArrayList<String> threeGrams = new ArrayList<>();
 
-    String query = "$" + word + "$";
+        String query = "$" + word + "$";
 
-    for (int i = 0; i <= query.length() - 3; i++) {
-        String threeGram = query.substring(i, i + 3);
+        for (int i = 0; i <= query.length() - 3; i++) {
+            String threeGram = query.substring(i, i + 3);
 
-        if (!threeGram.contains("*")) {
-            threeGrams.add(threeGram);
+            if (!threeGram.contains("*")) {
+                threeGrams.add(threeGram);
+            }
         }
-    }
 
-    return threeGrams;
-}
+        return threeGrams;
+    }
 }
