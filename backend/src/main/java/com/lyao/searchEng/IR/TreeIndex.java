@@ -9,13 +9,14 @@ import com.lyao.searchEng.parser.LineOfTerms;
 import com.lyao.searchEng.parser.Parser;
 import com.lyao.searchEng.parser.ParserFactory;
 
-
-
 import java.io.*;
 import java.util.*;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.geo.Line;
-
 
 public class TreeIndex {
     private File sourceFolder;
@@ -28,12 +29,24 @@ public class TreeIndex {
     private int currentDoc, wordPosition, blockNumber;
     public TreeMap<String, OffsetToPostList> dictionary;
     public TreeMap<String, TreeSet<String>> threeGramIndex;
+    public int numberOfFiles;
 
     public TreeIndex(String path) throws IOException {
         this.sourceFolder = new File(path);
+
+        System.out.println("PATH ARG: " + path);
+        System.out.println("ABSOLUTE PATH: " + sourceFolder.getAbsolutePath());
+        System.out.println("EXISTS: " + sourceFolder.exists());
+        System.out.println("IS DIRECTORY: " + sourceFolder.isDirectory());
         inputFiles = sourceFolder.listFiles();
-        if (inputFiles == null || inputFiles.length == 0)
-            throw new IllegalArgumentException("No input files found in: " + path);
+
+         if (inputFiles == null || inputFiles.length == 0) {
+        throw new IllegalArgumentException(
+            "No input files found in: " + sourceFolder.getAbsolutePath()
+        );
+    }
+        numberOfFiles = inputFiles.length;
+  
         File dataDir = new File("./data");
         if (!dataDir.exists())
             dataDir.mkdirs();
@@ -59,7 +72,6 @@ public class TreeIndex {
         this.blocksOfPositionalPostings = new ArrayList<>();
 
         createTempBlocksFiles();
-
 
         mergeFiles(blocksOfPositionalPostings, "positional", positionalPostingFile);
         mergeFiles(blocksOfZonePostings, "zone", zonePostingFile);
@@ -127,17 +139,30 @@ public class TreeIndex {
 
     private void putAutorAndTitleIntoZoneIndex(Map<String, List<TempDictItem>> tempDictionary) {
         this.currentParser.getAuthor().forEach(a -> {
-            tempDictionary.computeIfAbsent(a, k -> new ArrayList<>());
-            tempDictionary.get(a).add(new ZonePostingItem(currentParser.getDocId(), Zone.AUTHOR.getWeight()));
+            try {
+                for(String term : normilizeQuery(a)) {
+                    tempDictionary.computeIfAbsent(term, k -> new ArrayList<>());
+                    tempDictionary.get(term).add(new ZonePostingItem(currentParser.getDocId(), Zone.AUTHOR.getWeight()));
+                }
+            } catch (IOException e) {
+              System.err.println("Error normalizing author term: " + a);
+            }
         });
 
         this.currentParser.getTitle().forEach(t -> {
-            tempDictionary.computeIfAbsent(t, k -> new ArrayList<>());
-            tempDictionary.get(t).add(new ZonePostingItem(currentParser.getDocId(), Zone.TITLE.getWeight()));
+            try {
+                for(String term : normilizeQuery(t)) {
+                    tempDictionary.computeIfAbsent(term, k -> new ArrayList<>());
+                    tempDictionary.get(term).add(new ZonePostingItem(currentParser.getDocId(), Zone.TITLE.getWeight()));
+                }
+            } catch (IOException e) {
+              System.err.println("Error normalizing title term: " + t);
+            }
         });
     }
 
-    private void sortAndWriteBlockToFile(Map<String, List<TempDictItem>> tempDictionary, String indicator) throws IOException {
+    private void sortAndWriteBlockToFile(Map<String, List<TempDictItem>> tempDictionary, String indicator)
+            throws IOException {
         File tempFile = new File("block-" + blockNumber + indicator + ".txt");
         tempFile.deleteOnExit();
         BufferedWriter bw = new BufferedWriter(new FileWriter(tempFile));
@@ -163,9 +188,10 @@ public class TreeIndex {
         bw.close();
         this.blockNumber++;
     }
-private void mergeFiles(ArrayList<File> blocks, String indicator, RandomAccessFile outputFile) throws IOException {
+
+    private void mergeFiles(ArrayList<File> blocks, String indicator, RandomAccessFile outputFile) throws IOException {
         BufferedReader[] bufferedReaders = new BufferedReader[blocks.size()];
-       
+
         PriorityQueue<LineForMerging> queue = new PriorityQueue<>();
         for (int i = 0; i < blocks.size(); i++) {
             bufferedReaders[i] = new BufferedReader(new FileReader(blocks.get(i)));
@@ -175,7 +201,7 @@ private void mergeFiles(ArrayList<File> blocks, String indicator, RandomAccessFi
             }
         }
         while (!queue.isEmpty()) {
-            
+
             LineForMerging postingLine = queue.poll();
             String term = postingLine.getTerm();
             Set<TempDictItem> indexes = new TreeSet<>(postingLine.getPostings());
@@ -188,16 +214,18 @@ private void mergeFiles(ArrayList<File> blocks, String indicator, RandomAccessFi
             }
 
             if (dictionary.containsKey(term)) {
-                if(indicator.equals("zone"))
+                if (indicator.equals("zone")) {
                     dictionary.get(term).zoneOffset = outputFile.length();
-                else if(indicator.equals("pos"))
+                    dictionary.get(term).zoneDocFrequency = indexes.size();
+                } else if (indicator.equals("pos")) {
                     dictionary.get(term).positionalOffset = outputFile.length();
-                dictionary.get(term).zoneOffset = outputFile.length();
-                dictionary.get(term).docFrequency = indexes.size();
-            } else if(indicator.equals("zone"))
-                dictionary.put(term, new OffsetToPostList(outputFile.length(), -1, -1, indexes.size()));
-            else if(indicator.equals("pos"))
-                dictionary.put(term, new OffsetToPostList(-1, -1, outputFile.length(), indexes.size()));
+                    dictionary.get(term).docFrequency = indexes.size();
+                }
+            } else if (indicator.equals("zone")) {
+                dictionary.put(term, new OffsetToPostList(outputFile.length(), -1, -1, 0, indexes.size()));
+            } else if (indicator.equals("pos")) {
+                dictionary.put(term, new OffsetToPostList(-1, -1, outputFile.length(), indexes.size(), 0));
+            }
 
             for (TempDictItem index : indexes) {
                 outputFile.writeInt(index.getDocID());
@@ -217,29 +245,27 @@ private void mergeFiles(ArrayList<File> blocks, String indicator, RandomAccessFi
         }
     }
 
-
-   
-
-// class for storing the offset and document frequency of a term in the
+    // class for storing the offset and document frequency of a term in the
     // dictionary
     public class OffsetToPostList {
         public long zoneOffset = -1;
         public long regularOffset = -1;
         public long positionalOffset = -1;
         public int docFrequency = 0;
+        public int zoneDocFrequency = 0;
 
         public OffsetToPostList() {
         }
 
-        public OffsetToPostList(long zoneOffset, long regularOffset, long positionalOffset, int docFrequency) {
+        public OffsetToPostList(long zoneOffset, long regularOffset, long positionalOffset, int docFrequency,
+                int zoneDocFrequency) {
             this.zoneOffset = zoneOffset;
             this.regularOffset = regularOffset;
             this.positionalOffset = positionalOffset;
             this.docFrequency = docFrequency;
+            this.zoneDocFrequency = zoneDocFrequency;
         }
     }
-
-   
 
     private void buildThreeGramIndex() {
         for (String term : dictionary.keySet()) {
@@ -266,5 +292,28 @@ private void mergeFiles(ArrayList<File> blocks, String indicator, RandomAccessFi
             regularPostingFile.close();
         if (positionalPostingFile != null)
             positionalPostingFile.close();
+    }
+
+    public List<ZonePostingItem> readZonePostingList(long offset, int zoneDocFr) throws IOException {
+        List<ZonePostingItem> t = new ArrayList<>();
+        zonePostingFile.seek(offset);
+        for (int i = 0; i < zoneDocFr; i++) {
+            t.add(new ZonePostingItem(zonePostingFile.readInt(), zonePostingFile.readFloat()));
+        }
+        return t;
+    }
+
+    private ArrayList<String> normilizeQuery(String termsQuery) throws IOException {
+
+        ArrayList<String> terms = new ArrayList<>();
+        Analyzer analyzer = new EnglishAnalyzer();
+        TokenStream ts = analyzer.tokenStream("field", termsQuery);
+        ts.reset();
+        while (ts.incrementToken()) {
+            terms.add(ts.getAttribute(CharTermAttribute.class).toString());
+        }
+        ts.close();
+        analyzer.close();
+        return terms;
     }
 }

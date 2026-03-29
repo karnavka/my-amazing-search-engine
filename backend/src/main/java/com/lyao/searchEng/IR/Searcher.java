@@ -47,9 +47,10 @@ public class Searcher {
         TreeSet<Integer> indexes = new TreeSet<>();
         for (String key : words) {
             TreeIndex.OffsetToPostList entry = dictionary.get(key);
-            if (entry == null || entry.zoneOffset < 0) continue;   
+            if (entry == null || entry.zoneOffset < 0)
+                continue;
             zonePostingFile.seek(entry.zoneOffset);
-            for (int i = 0; i < entry.docFrequency; i++) {
+            for (int i = 0; i < entry.zoneDocFrequency; i++) {
                 int docID = zonePostingFile.readInt();
                 zonePostingFile.readFloat();
                 indexes.add(docID);
@@ -69,7 +70,7 @@ public class Searcher {
 
             long offset = entry.zoneOffset;
             zonePostingFile.seek(offset);
-            for (int i = 0; i < dictionary.get(key).docFrequency; i++) {
+            for (int i = 0; i < dictionary.get(key).zoneDocFrequency; i++) {
                 int docID = zonePostingFile.readInt();
                 float zoneWeight = zonePostingFile.readFloat();
                 weightPerDoc[docID] += zoneWeight;
@@ -88,30 +89,41 @@ public class Searcher {
         return docIDsInZoneOrder;
     }
 
-  public TreeSet<Integer> wildCardTheeGram(String word) throws IOException {
+
+    public TreeSet<Integer> wildCardTheeGram(String word) throws IOException {
     lastFoundWords = new TreeSet<>();
     TreeSet<Integer> resIndexes = new TreeSet<>();
+
+    word = word.toLowerCase();
+
     ArrayList<String> threeGrams = createThreeGramsFromQuery(word);
-    if (threeGrams.isEmpty()) return resIndexes;
-    TreeSet<String> matchingWords = threeGramIndex.get(threeGrams.get(0));
-    if (matchingWords == null) return resIndexes;
-    matchingWords = new TreeSet<>(matchingWords);
-    for (int i = 1; i < threeGrams.size(); i++) {
-        TreeSet<String> matchingWordsToCurrentThreeGram = threeGramIndex.get(threeGrams.get(i));
-        if (matchingWordsToCurrentThreeGram == null) {
-            return resIndexes;
-        }
-        matchingWords = intersectWords(matchingWordsToCurrentThreeGram, matchingWords);
-        if (matchingWords.isEmpty()) {
-            return resIndexes;
+
+    TreeSet<String> matchingWords;
+
+    if (threeGrams.isEmpty()) {
+        matchingWords = new TreeSet<>(dictionary.keySet());
+    } else {
+        matchingWords = threeGramIndex.get(threeGrams.get(0));
+        if (matchingWords == null) return resIndexes;
+
+        matchingWords = new TreeSet<>(matchingWords);
+
+        for (int i = 1; i < threeGrams.size(); i++) {
+            TreeSet<String> current = threeGramIndex.get(threeGrams.get(i));
+            if (current == null) return resIndexes;
+
+            matchingWords = intersectWords(current, matchingWords);
+            if (matchingWords.isEmpty()) return resIndexes;
         }
     }
+
     TreeSet<String> filteredWords = new TreeSet<>();
     for (String candidate : matchingWords) {
         if (matchesWildcard(candidate, word)) {
             filteredWords.add(candidate);
         }
     }
+
     resIndexes = getPostingsOfWordsInZoneIndex(filteredWords);
     lastFoundWords = filteredWords;
     return resIndexes;
@@ -202,19 +214,42 @@ public class Searcher {
         return paths;
     }
 
-    private ArrayList<String> createThreeGramsFromQuery(String word) {
-        ArrayList<String> threeGrams = new ArrayList<>();
+    private ArrayList<String> createThreeGramsFromQuery(String wildcard) {
+    ArrayList<String> grams = new ArrayList<>();
 
-        String query = "$" + word + "$";
+    wildcard = wildcard.toLowerCase();
 
-        for (int i = 0; i <= query.length() - 3; i++) {
-            String threeGram = query.substring(i, i + 3);
+    String[] parts = wildcard.split("\\*", -1);
 
-            if (!threeGram.contains("*")) {
-                threeGrams.add(threeGram);
-            }
+    boolean startsWithStar = wildcard.startsWith("*");
+    boolean endsWithStar = wildcard.endsWith("*");
+
+    for (int i = 0; i < parts.length; i++) {
+        String part = parts[i];
+        if (part.isEmpty()) continue;
+
+        String enriched = part;
+
+        if (i == 0 && !startsWithStar) {
+            enriched = "$" + enriched;
+        }
+        if (i == parts.length - 1 && !endsWithStar) {
+            enriched = enriched + "$";
         }
 
-        return threeGrams;
+        if (enriched.length() < 3) {
+            continue;
+        }
+
+        for (int j = 0; j <= enriched.length() - 3; j++) {
+            grams.add(enriched.substring(j, j + 3));
+        }
     }
+
+    return grams;
+}
+
+    public File[] getInputFiles() {
+    return inputFiles;
+}
 }

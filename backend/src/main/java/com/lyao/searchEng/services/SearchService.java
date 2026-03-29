@@ -10,16 +10,20 @@ import com.lyao.searchEng.IR.Searcher;
 @Service
 public class SearchService {
 
-    private Searcher searcher;
+    private final Searcher searcher;
+    private final TreeIndex index;
 
-    public SearchService() {
+    public SearchService(TreeIndex index) {
+        this.index = index;
+
         try {
-            this.searcher = new Searcher(new TreeIndex(".\\data\\books"));
-            searcher.getDocsPathByWildcard("m*on");
+            this.searcher = new Searcher(index);
+            System.err.println(searcher.getDocsPathByZone("history"));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
+    
 
     /*
      * public Set<Integer> search(String query) {
@@ -38,11 +42,15 @@ public class SearchService {
         }
     }
 
-    public ArrayList<String> searchWildcar(String query) {
+    public ArrayList<String> searchWildcard(String query) {
         try {
             return searcher.getDocsPathByWildcard(query);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public File[] getInputFiles() {
+        return searcher.getInputFiles();
     }
 }
